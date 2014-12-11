@@ -77,8 +77,8 @@ fn bigint_int() {
     /*! `impl Add<Foo> for int` -- OK */
 
     assert!(ok(Remote,
-                       &[Concrete(Local, vec!()),
-                         Concrete(Remote, vec!())]));
+               &[Concrete(Local, vec!()),
+                 Concrete(Remote, vec!())]));
 }
 
 #[test]
@@ -94,6 +94,19 @@ fn bigint_param() {
 fn blanket() {
     /*! `impl<T> Foo for T` -- OK */
 
-    assert!(ok(Local,
-                       &[Parameter]));
+    assert!(ok(Local, &[Parameter]));
+}
+
+#[test]
+fn vec_local_1() {
+    /*! `impl Clone for Vec<Foo>` -- OK */
+
+    assert!(ok(Remote, &[Concrete(Remote, vec!(Concrete(Local, vec!())))]));
+}
+
+#[test]
+fn vec_local_2() {
+    /*! `impl<T> Clone for Vec<Foo<T>>` -- OK */
+
+    assert!(ok(Remote, &[Concrete(Remote, vec!(Concrete(Local, vec!(Parameter))))]));
 }
