@@ -1,0 +1,2 @@
+A simple prototype for exploring Rust's orphan rule and making sure it
+is both sound and sufficiently expressive.
