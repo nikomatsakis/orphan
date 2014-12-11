@@ -18,16 +18,16 @@ enum Crate {
     Remote,
 }
 
-fn orphan(krate: Crate, types: &[Type]) -> bool {
-    !not_orphan(krate, types)
+fn not_ok(krate: Crate, types: &[Type]) -> bool {
+    !ok(krate, types)
 }
 
-fn not_orphan(krate: Crate, types: &[Type]) -> bool {
+fn ok(krate: Crate, types: &[Type]) -> bool {
     let result = krate == Local || {
         types.iter().all(|t| type_local(t))
     };
 
-    debug!("not_orphan({},{}) = {}",
+    debug!("ok({},{}) = {}",
            krate, types, result);
 
     result
@@ -35,7 +35,7 @@ fn not_orphan(krate: Crate, types: &[Type]) -> bool {
 
 fn type_local(ty: &Type) -> bool {
     let result = match *ty {
-        Concrete(krate, ref types) => not_orphan(krate, types[]),
+        Concrete(krate, ref types) => ok(krate, types[]),
         Parameter => false,
     };
 
@@ -47,14 +47,14 @@ fn type_local(ty: &Type) -> bool {
 
 #[test]
 fn lone_type_parameter() {
-    /*! `impl<T> Show for T` -- orphan */
-    assert!(orphan(Remote, &[Parameter]));
+    /*! `impl<T> Show for T` -- not_ok */
+    assert!(not_ok(Remote, &[Parameter]));
 }
 
 #[test]
 fn type_parameter() {
     /*! `impl<T> Show for Foo<T>` -- OK */
-    assert!(not_orphan(Remote, &[Concrete(Local, vec!(Parameter))]));
+    assert!(ok(Remote, &[Concrete(Local, vec!(Parameter))]));
 }
 
 #[test]
@@ -64,7 +64,7 @@ fn overlapping_pairs() {
     // Bad because another crate could do:
     // impl<T> Show for Pair<Option<Bar>, Option<T>>
 
-    assert!(orphan(Remote,
+    assert!(not_ok(Remote,
                    &[Concrete(Remote, // Pair
                               vec!(Concrete(Remote, // Option
                                             vec!(Parameter)), // T
@@ -76,7 +76,7 @@ fn overlapping_pairs() {
 fn bigint_int() {
     /*! `impl Add<Foo> for int` -- OK */
 
-    assert!(not_orphan(Remote,
+    assert!(ok(Remote,
                        &[Concrete(Local, vec!()),
                          Concrete(Remote, vec!())]));
 }
@@ -85,7 +85,15 @@ fn bigint_int() {
 fn bigint_param() {
     /*! `impl Add<Foo> for T` -- not OK */
 
-    assert!(orphan(Remote,
+    assert!(not_ok(Remote,
                    &[Concrete(Local, vec!()),
                      Parameter]));
+}
+
+#[test]
+fn blanket() {
+    /*! `impl<T> Foo for T` -- OK */
+
+    assert!(ok(Local,
+                       &[Parameter]));
 }
