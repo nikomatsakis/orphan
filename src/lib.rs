@@ -1,4 +1,4 @@
-#![feature(globs, slicing_syntax, phase)]
+#![feature(globs, slicing_syntax, phase, macro_rules)]
 #![allow(dead_code)]
 
 #[phase(plugin, link)] extern crate log;
@@ -17,6 +17,20 @@ enum Crate {
     Local,
     Remote,
 }
+
+macro_rules! local(
+    ($($e:expr),*) => ({
+        Concrete(Local, vec!($($e),*))
+    });
+    ($($e:expr),+,) => (local!($($e),+))
+)
+
+macro_rules! remote(
+    ($($e:expr),*) => ({
+        Concrete(Remote, vec!($($e),*))
+    });
+    ($($e:expr),+,) => (remote!($($e),+))
+)
 
 fn not_ok(krate: Crate, types: &[Type]) -> bool {
     !ok(krate, types)
@@ -54,7 +68,7 @@ fn lone_type_parameter() {
 #[test]
 fn type_parameter() {
     /*! `impl<T> Show for Foo<T>` -- OK */
-    assert!(ok(Remote, &[Concrete(Local, vec!(Parameter))]));
+    assert!(ok(Remote, &[local!(Parameter)]));
 }
 
 #[test]
@@ -65,11 +79,9 @@ fn overlapping_pairs() {
     // impl<T> Show for Pair<Option<Bar>, Option<T>>
 
     assert!(not_ok(Remote,
-                   &[Concrete(Remote, // Pair
-                              vec!(Concrete(Remote, // Option
-                                            vec!(Parameter)), // T
-                                   Concrete(Local, // Foo
-                                            vec!())))]));
+                   &[remote!(                  // Pair<
+                       remote!(Parameter),     //   Option<T>,
+                       remote!(local!()))]));  //   Option<Foo> >
 }
 
 #[test]
@@ -77,8 +89,8 @@ fn bigint_int() {
     /*! `impl Add<Foo> for int` -- OK */
 
     assert!(ok(Remote,
-               &[Concrete(Local, vec!()),
-                 Concrete(Remote, vec!())]));
+               &[local!(),
+                 remote!()]));
 }
 
 #[test]
@@ -86,7 +98,7 @@ fn bigint_param() {
     /*! `impl Add<Foo> for T` -- not OK */
 
     assert!(not_ok(Remote,
-                   &[Concrete(Local, vec!()),
+                   &[local!(),
                      Parameter]));
 }
 
@@ -101,12 +113,12 @@ fn blanket() {
 fn vec_local_1() {
     /*! `impl Clone for Vec<Foo>` -- OK */
 
-    assert!(ok(Remote, &[Concrete(Remote, vec!(Concrete(Local, vec!())))]));
+    assert!(ok(Remote, &[remote!(local!())]));
 }
 
 #[test]
 fn vec_local_2() {
     /*! `impl<T> Clone for Vec<Foo<T>>` -- OK */
 
-    assert!(ok(Remote, &[Concrete(Remote, vec!(Concrete(Local, vec!(Parameter))))]));
+    assert!(ok(Remote, &[remote!(local!(Parameter))]));
 }
