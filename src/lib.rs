@@ -24,7 +24,7 @@ fn not_ok(krate: Crate, types: &[Type]) -> bool {
 
 fn ok(krate: Crate, types: &[Type]) -> bool {
     let result = krate == Local || {
-        types.iter().all(|t| type_local(t))
+        types.iter().all(|t| type_ok(t))
     };
 
     debug!("ok({},{}) = {}",
@@ -33,13 +33,13 @@ fn ok(krate: Crate, types: &[Type]) -> bool {
     result
 }
 
-fn type_local(ty: &Type) -> bool {
+fn type_ok(ty: &Type) -> bool {
     let result = match *ty {
         Concrete(krate, ref types) => ok(krate, types[]),
         Parameter => false,
     };
 
-    debug!("type_local({}) = {}",
+    debug!("type_ok({}) = {}",
            ty, result);
 
     result
