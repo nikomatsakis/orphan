@@ -37,6 +37,10 @@ fn not_ok(krate: Crate, types: &[Type]) -> bool {
 }
 
 fn ok(krate: Crate, types: &[Type]) -> bool {
+    /*!
+     * True if it is ok to apply a trait defined in `krate` to the types `types`
+     */
+
     let result = krate == Local || {
         types.iter().any(|t| type_local(t)) &&
             !types.iter().any(|t| uncovered_param(t))
