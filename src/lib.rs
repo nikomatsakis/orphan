@@ -39,7 +39,7 @@ fn not_ok(krate: Crate, types: &[Type]) -> bool {
 fn ok(krate: Crate, types: &[Type]) -> bool {
     let result = krate == Local || {
         types.iter().any(|t| type_local(t)) &&
-        !types.iter().any(|t| uncovered_param(t))
+            !types.iter().any(|t| uncovered_param(t))
     };
 
     debug!("ok({},{}) = {}",
@@ -49,6 +49,10 @@ fn ok(krate: Crate, types: &[Type]) -> bool {
 }
 
 fn type_local(ty: &Type) -> bool {
+    /*!
+     * True if the type `ty` references anything local.
+     */
+
     let result = match *ty {
         Concrete(Local, _) => true,
         Concrete(Remote, ref types) => types.iter().any(|t| type_local(t)),
@@ -62,6 +66,11 @@ fn type_local(ty: &Type) -> bool {
 }
 
 fn uncovered_param(ty: &Type) -> bool {
+    /*!
+     * True if the type `ty` contains type parameters that do not appear underneath
+     * something local.
+     */
+
     let result = match *ty {
         Concrete(Local, _) => false,
         Concrete(Remote, ref v) => v.iter().any(|t| uncovered_param(t)),
