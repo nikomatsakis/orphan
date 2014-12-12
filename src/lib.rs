@@ -6,10 +6,12 @@
 pub use self::Crate::*;
 pub use self::Type::*;
 
+use std::collections::BitvSet;
+
 #[deriving(PartialEq, Show)]
 enum Type {
     Concrete(Crate, Vec<Type>),
-    Parameter
+    Parameter(uint)
 }
 
 #[deriving(PartialEq, Show)]
@@ -42,8 +44,11 @@ fn ok(krate: Crate, types: &[Type]) -> bool {
      */
 
     let result = krate == Local || {
-        types.iter().any(|t| type_local(t)) &&
-            !types.iter().any(|t| uncovered_param(t))
+        types.iter().any(|t| type_local(t)) && {
+            let covered_params = covered_params_in_tys(types.as_slice());
+            let all_params = params_in_tys(types.as_slice());
+            all_params.is_subset(&covered_params)
+        }
     };
 
     debug!("ok({},{}) = {}",
@@ -60,7 +65,7 @@ fn type_local(ty: &Type) -> bool {
     let result = match *ty {
         Concrete(Local, _) => true,
         Concrete(Remote, ref types) => types.iter().any(|t| type_local(t)),
-        Parameter => false,
+        Parameter(_) => false,
     };
 
     debug!("type_local({}) = {}",
@@ -69,34 +74,51 @@ fn type_local(ty: &Type) -> bool {
     result
 }
 
-fn uncovered_param(ty: &Type) -> bool {
-    /*!
-     * True if the type `ty` contains type parameters that do not appear underneath
-     * something local.
-     */
+fn covered_params_in_tys(tys: &[Type]) -> BitvSet {
+    let mut set = BitvSet::new();
+    for ty in tys.iter() {
+        set.union_with(&covered_params_in_ty(ty))
+    }
+    set
+}
 
-    let result = match *ty {
-        Concrete(Local, _) => false,
-        Concrete(Remote, ref v) => v.iter().any(|t| uncovered_param(t)),
-        Parameter => true,
-    };
+fn covered_params_in_ty(ty: &Type) -> BitvSet {
+    match *ty {
+        Concrete(Local, ref tys) => params_in_tys(tys.as_slice()),
+        Concrete(Remote, ref tys) => covered_params_in_tys(tys.as_slice()),
+        Parameter(_) => BitvSet::new(),
+    }
+}
 
-    debug!("uncovered_param({}) = {}",
-           ty, result);
+fn params_in_tys(tys: &[Type]) -> BitvSet {
+    let mut set = BitvSet::new();
+    for ty in tys.iter() {
+        set.union_with(&params_in_ty(ty))
+    }
+    set
+}
 
-    result
+fn params_in_ty(ty: &Type) -> BitvSet {
+    match *ty {
+        Concrete(_, ref tys) => params_in_tys(tys.as_slice()),
+        Parameter(i) => {
+            let mut r = BitvSet::new();
+            r.insert(i);
+            r
+        }
+    }
 }
 
 #[test]
 fn lone_type_parameter() {
     /*! `impl<T> Show for T` -- not_ok */
-    assert!(not_ok(Remote, &[Parameter]));
+    assert!(not_ok(Remote, &[Parameter(0)]));
 }
 
 #[test]
 fn type_parameter() {
     /*! `impl<T> Show for Foo<T>` -- OK */
-    assert!(ok(Remote, &[local!(Parameter)]));
+    assert!(ok(Remote, &[local!(Parameter(0))]));
 }
 
 #[test]
@@ -108,7 +130,7 @@ fn overlapping_pairs() {
 
     assert!(not_ok(Remote,
                    &[remote!(                  // Pair<
-                       remote!(Parameter),     //   Option<T>,
+                       remote!(Parameter(0)),  //   Option<T>,
                        remote!(local!()))]));  //   Option<Foo> >
 }
 
@@ -136,14 +158,14 @@ fn bigint_param() {
 
     assert!(not_ok(Remote,
                    &[local!(),
-                     Parameter]));
+                     Parameter(0)]));
 }
 
 #[test]
 fn blanket() {
     /*! `impl<T> Foo for T` -- OK */
 
-    assert!(ok(Local, &[Parameter]));
+    assert!(ok(Local, &[Parameter(0)]));
 }
 
 #[test]
@@ -157,7 +179,7 @@ fn vec_local_1() {
 fn vec_local_2() {
     /*! `impl<T> Clone for Vec<Foo<T>>` -- OK */
 
-    assert!(ok(Remote, &[remote!(local!(Parameter))]));
+    assert!(ok(Remote, &[remote!(local!(Parameter(0)))]));
 }
 
 #[test]
@@ -165,4 +187,18 @@ fn all_remote() {
     /*! `impl Clone for int` -- not OK */
 
     assert!(not_ok(Remote, &[remote!(remote!())]));
+}
+
+#[test]
+fn iterator_vec() {
+    /*! `impl Iterator<T> for Foo<T>` -- OK */
+
+    assert!(ok(Remote, &[Parameter(0), local!(Parameter(0))]));
+}
+
+#[test]
+fn iterator_vec_any_elem() {
+    /*! `impl Iterator<U> for Foo<T>` -- not OK */
+
+    assert!(not_ok(Remote, &[Parameter(1), local!(Parameter(0))]));
 }
