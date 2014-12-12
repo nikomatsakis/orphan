@@ -38,6 +38,7 @@ fn not_ok(krate: Crate, types: &[Type]) -> bool {
 
 fn ok(krate: Crate, types: &[Type]) -> bool {
     let result = krate == Local || {
+        types.iter().any(|t| type_local(t)) &&
         types.iter().all(|t| type_ok(t))
     };
 
@@ -47,9 +48,24 @@ fn ok(krate: Crate, types: &[Type]) -> bool {
     result
 }
 
+fn type_local(ty: &Type) -> bool {
+    let result = match *ty {
+        Concrete(Local, _) => true,
+        Concrete(Remote, ref types) => types.iter().any(|t| type_local(t)),
+        Parameter => false,
+    };
+
+    debug!("type_local({}) = {}",
+           ty, result);
+
+    result
+}
+
 fn type_ok(ty: &Type) -> bool {
     let result = match *ty {
-        Concrete(krate, ref types) => ok(krate, types[]),
+        Concrete(Local, _) => true,
+        Concrete(Remote, ref v) if v.is_empty() => true,
+        Concrete(Remote, ref v) => ok(Remote, v.as_slice()),
         Parameter => false,
     };
 
@@ -94,6 +110,15 @@ fn bigint_int() {
 }
 
 #[test]
+fn bigint_vecint() {
+    /*! `impl Add<Foo> for Vec<int>` -- OK */
+
+    assert!(ok(Remote,
+               &[local!(),
+                 remote!(remote!())]));
+}
+
+#[test]
 fn bigint_param() {
     /*! `impl Add<Foo> for T` -- not OK */
 
@@ -121,4 +146,11 @@ fn vec_local_2() {
     /*! `impl<T> Clone for Vec<Foo<T>>` -- OK */
 
     assert!(ok(Remote, &[remote!(local!(Parameter))]));
+}
+
+#[test]
+fn all_remote() {
+    /*! `impl Clone for int` -- not OK */
+
+    assert!(not_ok(Remote, &[remote!(remote!())]));
 }
