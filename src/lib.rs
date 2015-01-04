@@ -25,14 +25,14 @@ macro_rules! local(
         Concrete(Local, vec!($($e),*))
     });
     ($($e:expr),+,) => (local!($($e),+))
-)
+);
 
 macro_rules! remote(
     ($($e:expr),*) => ({
         Concrete(Remote, vec!($($e),*))
     });
     ($($e:expr),+,) => (remote!($($e),+))
-)
+);
 
 fn not_ok(krate: Crate, types: &[Type]) -> bool {
     !ok(krate, types)
@@ -201,4 +201,16 @@ fn iterator_vec_any_elem() {
     /*! `impl Iterator<U> for Foo<T>` -- not OK */
 
     assert!(not_ok(Remote, &[Parameter(1), local!(Parameter(0))]));
+}
+
+#[test]
+fn aturon1() {
+    /*!
+     * Crate A: trait A<T> { ... }
+     * Crate B: struct B<T> { ... } impl<T> A<B<T>> for T { ... }
+     * Crate C: struct C { ... } impl<T> A<T> for C { ... }
+     */
+
+    assert!(ok(Remote, &[Parameter(0), local!(Parameter(0))]));
+    assert!(not_ok(Remote, &[local!(), Parameter(0)]));
 }
